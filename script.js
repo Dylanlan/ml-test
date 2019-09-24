@@ -1,29 +1,33 @@
 console.log('Hello TensorFlow');
 
-async function getData() {
+async function getTutorialDataSet() {
     const houseDataReq = await fetch('https://raw.githubusercontent.com/meetnandu05/ml1/master/house.json');
     const houseData = await houseDataReq.json();
     const cleaned = houseData.map(house => ({
-        price: house.Price,
-        rooms: house.AvgAreaNumberofRooms,
-    })).filter(house => (house.price != null && house.rooms != null));
+        yValue: house.Price,
+        xValue: house.AvgAreaNumberofRooms,
+    })).filter(point => (point.xValue != null && point.yValue != null));
 
-    return cleaned;
+    return {
+        xLabel: 'Rooms',
+        yLabel: 'Price',
+        data: cleaned
+    };
 }
 
 async function run() {
     // Load and plot the original input data that we are going to train on.
-    const data = await getData();
-    const values = data.map(d => ({
-        x: d.rooms,
-        y: d.price,
+    const dataSet = await getTutorialDataSet();
+    const values = dataSet.data.map(d => ({
+        x: d.xValue,
+        y: d.yValue,
     }));
     tfvis.render.scatterplot(
-        { name: 'No.of rooms v Price' },
+        { name: `${dataSet.xLabel} v ${dataSet.yLabel}` },
         { values },
         {
-            xLabel: 'No. of rooms',
-            yLabel: 'Price',
+            xLabel: dataSet.xLabel,
+            yLabel: dataSet.yLabel,
             height: 300
         }
     );
@@ -33,13 +37,14 @@ async function run() {
     tfvis.show.modelSummary({ name: 'Model Summary' }, model);
 
     // Convert the data to a form we can use for training.
-    const tensorData = convertToTensor(data);
+    
+    const tensorData = convertToTensor(dataSet.data);
     const { inputs, labels } = tensorData;
 
     // Train the model  
     await trainModel(model, inputs, labels);
     console.log('Done Training');
-    testModel(model, data, tensorData);
+    testModel(model, dataSet, tensorData);
 }
 
 document.addEventListener('DOMContentLoaded', run);
@@ -61,8 +66,8 @@ function convertToTensor(data) {
         // Step 1. Shuffle the data    
         tf.util.shuffle(data);
         // Step 2. Convert data to Tensor
-        const inputs = data.map(d => d.rooms)
-        const labels = data.map(d => d.price);
+        const inputs = data.map(d => d.xValue)
+        const labels = data.map(d => d.yValue);
         const inputTensor = tf.tensor2d(inputs, [inputs.length, 1]);
         const labelTensor = tf.tensor2d(labels, [labels.length, 1]);
         //Step 3. Normalize the data to the range 0 - 1 using min-max scaling
@@ -84,7 +89,7 @@ function convertToTensor(data) {
     });
 }
 
-function testModel(model, inputData, normalizationData) {
+function testModel(model, inputDataSet, normalizationData) {
     const { inputMax, inputMin, labelMin, labelMax } = normalizationData;
 
     // Generate predictions for a uniform range of numbers between 0 and 1;
@@ -111,17 +116,16 @@ function testModel(model, inputData, normalizationData) {
         return { x: val, y: preds[i] }
     });
 
-    const originalPoints = inputData.map(d => ({
-        x: d.rooms, y: d.price,
+    const originalPoints = inputDataSet.data.map(d => ({
+        x: d.xValue, y: d.yValue,
     }));
-
 
     tfvis.render.scatterplot(
         { name: 'Model Predictions vs Original Data' },
         { values: [originalPoints, predictedPoints], series: ['original', 'predicted'] },
         {
-            xLabel: 'No. of rooms',
-            yLabel: 'Price',
+            xLabel: inputDataSet.xLabel,
+            yLabel: inputDataSet.yLabel,
             height: 300
         }
     );
